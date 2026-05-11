@@ -28,6 +28,12 @@
 //       D5 secondary line is unused. Datasheet limits read rate to ~0.5 Hz,
 //       so we sample every 2.5 s and cache the last good values.
 //
+//   Grove SPDT Relay (active-HIGH) driving the silicone heater pad:
+//       Signal pin on D8. Drive HIGH to energise the coil and close the
+//       contacts (heater receives mains/PSU power); drive LOW to break.
+//       The relay's coil is isolated from the Arduino's 5 V rail by the
+//       module's onboard optocoupler/transistor stage.
+//
 // Design notes:
 //   - One ADC pin for N buttons frees digital pins for the heater relay
 //     and additional sensors.
@@ -57,6 +63,19 @@
 static const uint8_t PIN_BUTTONS = A0;
 static const uint8_t PIN_SONAR   = 2;     // Grove Ultrasonic v2 single-wire signal
 static const uint8_t PIN_DHT     = 4;     // Grove Temp+Humidity Pro signal (D4)
+static const uint8_t PIN_HEATER  = 8;     // Grove relay driving the heater pad
+
+// ---- Heater control --------------------------------------------------------
+// Bang-bang controller with a 0.5 C deadband around the setpoint -- wide
+// enough that the relay does not chatter on sensor noise, narrow enough
+// that the chamber holds within +/-1 C of target on a slow thermal mass
+// like a proofing jar.
+static const float HEATER_DEADBAND_C = 0.5f;
+// Hard upper safety cap. Crumpet dough proofs around 28-32 C; anything
+// over this is either a sensor fault or a runaway and the relay opens
+// regardless of the setpoint.
+static const float HEATER_MAX_C      = 45.0f;
+static bool        heaterOn          = false;
 
 // ---- ADC -> voltage conversion ---------------------------------------------
 static const float ADC_TO_V = 5.0f / 1024.0f;
@@ -149,11 +168,14 @@ static void renderLCD() {
   applyBacklight();
   char l1[17], l2[17];
   if (displayMode == MODE_TEMP) {
+    // Show a small heater indicator on line 1 -- one * means the relay is
+    // currently closed and the heater pad is drawing current.
+    char hot = heaterOn ? '*' : ' ';
     if (dhtValid) {
       int t10 = (int)lroundf(currentTempC * 10.0f);
-      snprintf(l1, sizeof(l1), "TEMP   %2d.%1d C   ", t10 / 10, abs(t10) % 10);
+      snprintf(l1, sizeof(l1), "TEMP   %2d.%1d C %c ", t10 / 10, abs(t10) % 10, hot);
     } else {
-      snprintf(l1, sizeof(l1), "TEMP   --.- C   ");
+      snprintf(l1, sizeof(l1), "TEMP   --.- C %c ", hot);
     }
     snprintf(l2, sizeof(l2), "Set %2d C   [+/-]", setpointC);
   } else if (displayMode == MODE_HUM) {
@@ -200,6 +222,32 @@ static long readDistanceMm() {
   return (long)durUs * 343L / 2000L;
 }
 
+// Bang-bang heater controller with deadband. Forces the relay open if the
+// DHT22 has not produced a valid reading yet (so we never heat blind) or
+// if the chamber temp has gone above the safety cap (sensor fault / heater
+// runaway). The deadband stops the relay clicking on every 0.1 C wobble.
+// Logs every state change so the serial trail tells you exactly when the
+// heater turned on/off and which temperature triggered it.
+static void updateHeater() {
+  bool want = heaterOn;  // default: hold current state inside the deadband
+  if (!dhtValid)                                        want = false;
+  else if (currentTempC >= HEATER_MAX_C)                want = false;
+  else if (currentTempC <  setpointC - HEATER_DEADBAND_C) want = true;
+  else if (currentTempC >  setpointC + HEATER_DEADBAND_C) want = false;
+
+  if (want != heaterOn) {
+    heaterOn = want;
+    digitalWrite(PIN_HEATER, heaterOn ? HIGH : LOW);
+    Serial.print(F("[heater] "));
+    Serial.print(heaterOn ? F("ON ") : F("OFF"));
+    Serial.print(F(" (current="));
+    Serial.print(currentTempC, 1);
+    Serial.print(F(" C, set="));
+    Serial.print(setpointC);
+    Serial.println(F(" C)"));
+  }
+}
+
 // Two-rate sensor sampler. Sonar runs at 1 Hz (pulseIn blocks up to 30 ms
 // so we keep it cheap); the DHT22 runs at ~0.4 Hz because its datasheet
 // requires >=2 s between reads. NaN returns from the DHT mean the sensor
@@ -229,6 +277,8 @@ static bool stepSensors(unsigned long now) {
     } else {
       Serial.println(F("[dht] read failed (NaN) -- holding previous values"));
     }
+    // Re-evaluate the heater every time we have fresh chamber temperature.
+    updateHeater();
   }
 
   return changed;
@@ -276,6 +326,9 @@ static void onPress(Button b, int adcAtPress) {
   Serial.print(F(" set="));      Serial.print(setpointC);
   if (ignored) Serial.print(F(" (no-op in this mode)"));
   Serial.print(F(" n="));        Serial.println(pressCount);
+  // Setpoint may have moved -- re-evaluate the heater immediately so the
+  // operator does not wait up to 2.5 s for the next DHT tick.
+  updateHeater();
   renderLCD();
 }
 
@@ -286,6 +339,12 @@ void setup() {
   while (!Serial && (millis() - t0) < 1500) { /* spin */ }
 
   pinMode(PIN_SONAR, INPUT);
+
+  // Heater relay defaults OFF -- if the firmware crashes between here and
+  // updateHeater(), the chamber simply does not heat.
+  pinMode(PIN_HEATER, OUTPUT);
+  digitalWrite(PIN_HEATER, LOW);
+
   dht.begin();
 
   Wire.begin();

@@ -129,3 +129,23 @@ Sensor characteristics:
 | First valid reading after power-on | ~1 s warm-up |
 
 The firmware samples the DHT22 every 2.5 s and silently holds the previous good value on a NaN return (which the sensor produces occasionally — usually less than 1 in 50 reads, harmless).
+
+## 10. Grove SPDT Relay + silicone heater pad
+
+Closes the temperature loop: the relay switches a silicone heater pad (or any mains/PSU-driven heater of your choice) on and off under firmware control.
+
+- Plug a 4-wire Grove cable from the relay module's onboard socket to the **D8** signal pin on the Base Shield. The relay is active-HIGH — driving D8 HIGH energises the coil and closes the NO contacts.
+- The relay's onboard optocoupler/transistor stage isolates the coil from the Arduino's 5 V rail, so the inductive kickback never reaches the MCU side.
+- **Wire the heater across the NO and COM screw terminals** of the relay. Use mains-rated cabling if the heater is mains-powered; for the silicone 12 V pad supplied with the kit, any insulated 0.5 mm² stranded wire is fine.
+
+The firmware runs a bang-bang controller around the temperature setpoint:
+
+| Condition | Heater state |
+|---|---|
+| current < setpoint − 0.5 °C | ON |
+| setpoint − 0.5 °C ≤ current ≤ setpoint + 0.5 °C | hold (no change) |
+| current > setpoint + 0.5 °C | OFF |
+| current ≥ 45 °C (hard cap) | OFF (regardless of setpoint) |
+| DHT22 has not produced a valid reading yet | OFF (safety lockout) |
+
+A `*` next to the temperature on the LCD TEMP page indicates the heater is currently drawing power. Every transition is also logged on serial as `[heater] ON / OFF (current=X.X C, set=Y C)`.

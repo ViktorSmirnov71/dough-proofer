@@ -31,10 +31,11 @@ rather than open-loop kitchen timing.
 | Grove RGB LCD 2x16 | I2C | Wire library, addresses 0x3E + 0x62 |
 | Grove Ultrasonic Distance Sensor v2 | **D2** | single-wire bidirectional protocol |
 | Grove Temperature + Humidity Pro v1.3 (DHT22) | **D4** | proprietary 1-wire, 0.5 Hz max |
+| Grove SPDT relay + silicone heater pad | **D8** | active-HIGH; bang-bang temperature loop |
 
-Active components consume ~80 mA at 5 V; the whole rig runs from a single
-USB-C connection. A Grove relay + silicone heater pad are planned for the
-closed-loop control stage but not yet wired.
+Active components consume ~80 mA at 5 V from the USB-C connection; the
+heater itself runs from its own supply through the relay's isolated
+contacts.
 
 ## Analog button matrix
 
@@ -109,8 +110,6 @@ build, sensor cabling, and a troubleshooting table are in
 
 ## Roadmap
 
-- **Closed-loop heater control** via a Grove relay on a digital pin, with
-  bang-bang or PID on the DHT22 temperature read.
 - **Moving-average smoothing** on the ultrasonic height signal. Raw
   ultrasonic readings have +/-3 mm jitter, which is large enough to bury
   the slow dough-rise gradient (typically 5-10 mm / minute at peak rise);
