@@ -170,20 +170,39 @@ rgb_lcd lcd;
 DHT dht(PIN_DHT, DHT22);
 
 // ---- Speech synthesis (TalkiePCM LPC vocoder) ------------------------------
-// TalkiePCM produces 8 kHz int16 samples and calls our callback with them.
-// We map each sample to the DAC's 0..4095 range and clock them out at the
-// requested rate via a busy-wait. The Grove Speaker's LM386 then turns
-// the analogue voltage into sound. Quality is robotic but intelligible --
-// the same vocoder the 1980s Speak-and-Spell used.
+// TalkiePCM produces 8 kHz int16 samples and calls our callback for every
+// one. The samples are mapped to the DAC's 0..4095 range and clocked out
+// at exactly 8 kHz using absolute-time scheduling -- a naive
+// delayMicroseconds(125) gets corrupted by analogWrite latency + LPC math
+// time, dropping the effective rate to ~5-6 kHz and turning speech into
+// mush. micros()-based catch-up holds the average rate at 8 kHz even when
+// individual iterations run long.
 TalkiePCM voice;
+static unsigned long nextSampleUs = 0;
 
 static void dacCallback(int16_t* data, int len) {
   for (int i = 0; i < len; i++) {
-    int32_t v = ((int32_t)data[i] + 32768) >> 4;  // -32768..32767 -> 0..4095
-    if (v < 0)    v = 0;
-    if (v > 4095) v = 4095;
-    analogWrite(PIN_AUDIO, (uint16_t)v);
-    delayMicroseconds(125);                        // ~8 kHz cadence
+    int32_t v = (int32_t)data[i];
+    // Apply software volume to the speech path. Level 0 emits silence
+    // (the speech path is gated upstream anyway, but belt and braces).
+    // Levels 1..3 scale the int16 swing before remapping to DAC codes.
+    if      (volumeLevel == 0) v = 0;
+    else if (volumeLevel == 1) v = v / 4;
+    else if (volumeLevel == 2) v = v / 2;
+    // level 3 -- full rail
+    int32_t code = (v + 32768) >> 4;               // -32768..32767 -> 0..4095
+    if (code < 0)    code = 0;
+    if (code > 4095) code = 4095;
+
+    // Wait for the scheduled sample slot. If we've fallen more than 100 ms
+    // behind (e.g. interrupted by another routine), resync to avoid a long
+    // catch-up burst.
+    long slip = (long)(micros() - nextSampleUs);
+    if (slip > 100000L) nextSampleUs = micros();
+    while ((long)(micros() - nextSampleUs) < 0) { /* spin */ }
+    nextSampleUs += 125;                            // 8 kHz period
+
+    analogWrite(PIN_AUDIO, (uint16_t)code);
   }
 }
 
@@ -302,6 +321,7 @@ static void beep(unsigned freq, unsigned durMs) {
 // instead of attempting to say nonsense.
 static void speakCurrentPage() {
   if (volumeLevel == 0) return;            // muted -> say nothing at all
+  nextSampleUs = micros();                 // reset 8 kHz schedule for this burst
   if (displayMode == MODE_TEMP) {
     if (!dhtValid) { beep(120, 500); return; }
     voice.sayNumber((long)lroundf(currentTempC));
