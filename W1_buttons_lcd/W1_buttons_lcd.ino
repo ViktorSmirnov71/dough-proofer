@@ -314,11 +314,17 @@ static void beep(unsigned freq, unsigned durMs) {
 // instead of attempting to say nonsense.
 static void speakCurrentPage() {
   if (volumeLevel == 0) return;            // muted -> say nothing at all
-  // Map software volume to TalkiePCM's internal gain. Level 1 = quiet
-  // (0.6x), level 2 = nominal (1.2x -- a small natural boost since the
-  // raw LPC output uses only ~25 % of DAC range), level 3 = loud (1.8x,
-  // accepts some peak clipping for additional perceived loudness).
-  voice.setVolume(volumeLevel * 0.6f);
+  // Map software volume to TalkiePCM's internal gain. Raw LPC output only
+  // touches ~25 % of the DAC range, which is much quieter than the
+  // square-wave beeps that hit the rails -- the Grove Speaker's pot
+  // setting that makes beeps "loud enough" leaves speech below the noise
+  // floor. We deliberately overdrive: level 2 saturates the int16 range
+  // for typical samples (perceived as "clearly audible"), level 3 hard-
+  // clips most of the waveform into a roughly square shape (perceived as
+  // "distorted but unmistakable"). Acceptable trade-off because the
+  // listener mainly needs to recognise digits, not enjoy fidelity.
+  static const float gainTable[VOLUME_MAX + 1] = { 0.0f, 1.0f, 2.5f, 5.0f };
+  voice.setVolume(gainTable[volumeLevel]);
   nextSampleUs = micros();                 // reset 8 kHz schedule for this burst
   if (displayMode == MODE_TEMP) {
     if (!dhtValid) { beep(120, 500); return; }
