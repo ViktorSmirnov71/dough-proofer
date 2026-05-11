@@ -181,26 +181,19 @@ TalkiePCM voice;
 static unsigned long nextSampleUs = 0;
 
 static void dacCallback(int16_t* data, int len) {
+  // Map the int16 sample to a 12-bit DAC code, wait for the 8 kHz slot,
+  // and write. Sample amplitude is set upstream via voice.setVolume(),
+  // not here -- keeping this hot loop as short as possible matters more
+  // for staying on the 125 us schedule than per-sample scaling.
   for (int i = 0; i < len; i++) {
-    int32_t v = (int32_t)data[i];
-    // Apply software volume to the speech path. Level 0 emits silence
-    // (the speech path is gated upstream anyway, but belt and braces).
-    // Levels 1..3 scale the int16 swing before remapping to DAC codes.
-    if      (volumeLevel == 0) v = 0;
-    else if (volumeLevel == 1) v = v / 4;
-    else if (volumeLevel == 2) v = v / 2;
-    // level 3 -- full rail
-    int32_t code = (v + 32768) >> 4;               // -32768..32767 -> 0..4095
+    int32_t code = ((int32_t)data[i] + 32768) >> 4;  // -32768..32767 -> 0..4095
     if (code < 0)    code = 0;
     if (code > 4095) code = 4095;
 
-    // Wait for the scheduled sample slot. If we've fallen more than 100 ms
-    // behind (e.g. interrupted by another routine), resync to avoid a long
-    // catch-up burst.
     long slip = (long)(micros() - nextSampleUs);
     if (slip > 100000L) nextSampleUs = micros();
     while ((long)(micros() - nextSampleUs) < 0) { /* spin */ }
-    nextSampleUs += 125;                            // 8 kHz period
+    nextSampleUs += 125;
 
     analogWrite(PIN_AUDIO, (uint16_t)code);
   }
@@ -321,6 +314,11 @@ static void beep(unsigned freq, unsigned durMs) {
 // instead of attempting to say nonsense.
 static void speakCurrentPage() {
   if (volumeLevel == 0) return;            // muted -> say nothing at all
+  // Map software volume to TalkiePCM's internal gain. Level 1 = quiet
+  // (0.6x), level 2 = nominal (1.2x -- a small natural boost since the
+  // raw LPC output uses only ~25 % of DAC range), level 3 = loud (1.8x,
+  // accepts some peak clipping for additional perceived loudness).
+  voice.setVolume(volumeLevel * 0.6f);
   nextSampleUs = micros();                 // reset 8 kHz schedule for this burst
   if (displayMode == MODE_TEMP) {
     if (!dhtValid) { beep(120, 500); return; }
