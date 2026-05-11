@@ -100,3 +100,13 @@ If a button is detected as the wrong one, hold it down and type `c` + Enter in t
 | Press of B2/B3/B4 registers as B1 | The button's leg resistor is between the button and *GND* instead of between row X and the *button*; current still flows through the button short. Move the resistor to the row-X side. |
 | Random presses appear when nothing is touched | Idle A0 is not sitting near 1023; series resistor not connected to 5V, or there is a short elsewhere on row X. |
 | `Board at /dev/cu.usbmodem... is not available` | The R4's bootloader port disappears for a second during upload; just retry. If it keeps failing, double-tap the on-board reset to force DFU mode. |
+
+## 8. Grove Ultrasonic Distance Sensor v2
+
+Used for tracking dough rise inside the chamber.
+
+- Plug a 4-wire Grove cable from the sensor's onboard socket to the **D2** socket on the Base Shield. That's the whole hookup.
+- The sensor uses a **single bidirectional signal line** — the firmware pulses it HIGH for 5 us to fire a ping, then switches the pin to INPUT and measures the returned echo pulse width. There is no separate Trig/Echo split as on a bare HC-SR04.
+- VCC and GND travel through the same Grove cable. The shield's 3.3 V / 5 V selector is **not critical** for this module — its onboard PCB handles logic-level conversion.
+
+Range: ~2 cm to ~4 m, ±3 mm typical. Mount the sensor face-down ~10-20 cm above the dough surface; the ~15° cone needs a target wider than ~5 cm at that distance to return a clean echo.
