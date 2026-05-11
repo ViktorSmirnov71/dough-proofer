@@ -1,4 +1,4 @@
-# Workshop 1 wiring guide
+# Wiring guide
 
 Hardware target: Arduino UNO R4 WiFi + Seeed Grove Base Shield + Grove RGB LCD 2x16 + 4 push-buttons on a mini breadboard.
 
