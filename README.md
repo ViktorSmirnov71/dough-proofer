@@ -27,12 +27,12 @@ rather than open-loop kitchen timing.
 |---|---|---|
 | Arduino UNO R4 WiFi | host | Renesas RA4M1, 5 V I/O, 10-bit ADC default |
 | Seeed Grove Base Shield | passthrough | voltage selector set to 5 V |
-| 4-button voltage-divider matrix | **A0** | single ADC pin, four discrete codes |
+| 4-button voltage-divider matrix | **A1** | single ADC pin, four discrete codes |
 | Grove RGB LCD 2x16 | I2C | Wire library, addresses 0x3E + 0x62 |
 | Grove Ultrasonic Distance Sensor v2 | **D2** | single-wire bidirectional protocol |
 | Grove Temperature + Humidity Pro v1.3 (DHT22) | **D4** | proprietary 1-wire, 0.5 Hz max |
 | Grove SPDT relay + silicone heater pad | **D8** | active-HIGH; bang-bang temperature loop |
-| Grove Speaker (piezo + amp) | **D5** | `tone()` annunciator; beep-count encoding of metrics |
+| Grove Speaker (piezo + LM386) | **A0** | 12-bit DAC output; TalkiePCM LPC speech |
 
 Active components consume ~80 mA at 5 V from the USB-C connection; the
 heater itself runs from its own supply through the relay's isolated
@@ -43,7 +43,7 @@ contacts.
 Four push-buttons share one ADC pin via a switched voltage divider:
 
 ```
-   5V --[ 1 kohm ]--+-- A0
+   5V --[ 1 kohm ]--+-- A1
                     |
                     +--[ SW1 ]------------- GND     (short,    V ~ 0.00 V)
                     +--[ 180 ohm ]--[ SW2 ]-- GND   (          V ~ 0.76 V)
@@ -51,7 +51,10 @@ Four push-buttons share one ADC pin via a switched voltage divider:
                     +--[ 330 ohm ]--[ SW4 ]-- GND   (          V ~ 1.24 V)
 ```
 
-With nothing pressed, A0 is pulled up to 5 V through the 1 kohm. Pressing
+(A0 on the R4 is the 12-bit DAC pin and is now dedicated to driving the
+speaker. The button matrix migrated to A1 to free it.)
+
+With nothing pressed, A1 is pulled up to 5 V through the 1 kohm. Pressing
 a button drops A0 to a leg-specific voltage and the firmware classifies
 the resulting ADC code into one of four bands. The 10-bit ADC at
 V_ref = 5 V resolves the bands cleanly — minimum gap between adjacent codes
