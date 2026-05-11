@@ -149,3 +149,23 @@ The firmware runs a bang-bang controller around the temperature setpoint:
 | DHT22 has not produced a valid reading yet | OFF (safety lockout) |
 
 A `*` next to the temperature on the LCD TEMP page indicates the heater is currently drawing power. Every transition is also logged on serial as `[heater] ON / OFF (current=X.X C, set=Y C)`.
+
+## 11. Grove Speaker (audio annunciator on D5)
+
+A passive piezo with an onboard amplifier. The firmware uses Arduino's `tone()` API to emit square-wave beeps that encode the current chamber metric.
+
+- Plug the speaker's Grove cable into a socket whose primary signal line is **D5** (typically the D5 socket on the Base Shield, or a Grove pigtail to the D5 header pin).
+- The module has a small onboard **potentiometer** for analogue volume — turn it down if the beeps are too loud for the room. The firmware-side volume (page **VOLUME**, levels 0–3) sits on top of this and provides software muting + pitch / duration shaping.
+- The module cannot synthesise speech; everything is square-wave tones.
+
+Beep-count encoding for two-digit values:
+
+| Component | Pitch | Duration |
+|---|---|---|
+| Tens digit | 500 Hz | 110 ms × N |
+| Inter-digit pause | — | 300 ms |
+| Units digit | 1200 Hz | 110 ms × N |
+| Zero digit | 180 Hz | 60 ms (one short blip) |
+| Sensor fault | 120 Hz | 500 ms (long low growl) |
+
+Distance values (HEIGHT page) are scaled to centimetres before announcement so they fit the two-digit envelope.

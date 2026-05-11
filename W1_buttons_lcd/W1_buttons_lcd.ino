@@ -34,6 +34,12 @@
 //       The relay's coil is isolated from the Arduino's 5 V rail by the
 //       module's onboard optocoupler/transistor stage.
 //
+//   Grove Speaker on D5:
+//       Square-wave tone output via tone(). The current chamber metric
+//       (temperature / humidity / distance) is announced as beep-count
+//       encoded two-digit values when MODE switches pages -- tens digit
+//       beeps at 500 Hz, units at 1200 Hz, zero shown as a single low blip.
+//
 // Design notes:
 //   - One ADC pin for N buttons frees digital pins for the heater relay
 //     and additional sensors.
@@ -64,6 +70,7 @@ static const uint8_t PIN_BUTTONS = A0;
 static const uint8_t PIN_SONAR   = 2;     // Grove Ultrasonic v2 single-wire signal
 static const uint8_t PIN_DHT     = 4;     // Grove Temp+Humidity Pro signal (D4)
 static const uint8_t PIN_HEATER  = 8;     // Grove relay driving the heater pad
+static const uint8_t PIN_SPEAKER = 5;     // Grove speaker square-wave output
 
 // ---- Heater control --------------------------------------------------------
 // Bang-bang controller with a 0.5 C deadband around the setpoint -- wide
@@ -109,8 +116,17 @@ static Button   confirmed    = BTN_NONE;
 static unsigned long nextSampleMs = 0;
 
 // ---- App state -------------------------------------------------------------
-enum Mode : uint8_t { MODE_TEMP = 0, MODE_HUM = 1, MODE_HEIGHT = 2, MODE_N };
-static const char* MODE_NAME[MODE_N] = { "TEMP", "HUM ", "HGHT" };
+enum Mode : uint8_t { MODE_TEMP = 0, MODE_HUM = 1, MODE_HEIGHT = 2, MODE_VOLUME = 3, MODE_N };
+static const char* MODE_NAME[MODE_N] = { "TEMP", "HUM ", "HGHT", "VOL " };
+
+// Software speaker level. 0 = mute (beep() skips, but still consumes the
+// nominal beep duration so speakNumber's cadence stays predictable).
+// 1 = soft (shorter, lower-pitch tones), 2 = normal, 3 = emphatic
+// (slightly higher-pitch tones). Real analogue loudness comes from the
+// potentiometer on the speaker module itself; this is the digital mute /
+// trim on top of it.
+static const uint8_t VOLUME_MAX = 3;
+static uint8_t       volumeLevel = 2;
 
 static int      setpointC      = 32;
 static Mode     displayMode    = MODE_TEMP;
@@ -161,7 +177,8 @@ static void applyBacklight() {
   bgMode = displayMode;
   if      (displayMode == MODE_TEMP)   lcd.setRGB(200, 110,  20);  // warm amber
   else if (displayMode == MODE_HUM)    lcd.setRGB( 20, 150, 200);  // cool cyan
-  else                                 lcd.setRGB( 40, 200, 100);  // fresh green
+  else if (displayMode == MODE_HEIGHT) lcd.setRGB( 40, 200, 100);  // fresh green
+  else                                 lcd.setRGB(180,  60, 200);  // violet for volume
 }
 
 static void renderLCD() {
@@ -186,7 +203,7 @@ static void renderLCD() {
       snprintf(l1, sizeof(l1), "HUM    --.- %%   ");
     }
     snprintf(l2, sizeof(l2), "display only    ");
-  } else {  // MODE_HEIGHT
+  } else if (displayMode == MODE_HEIGHT) {
     if (currentDistanceMm < 0) {
       snprintf(l1, sizeof(l1), "DIST   -- mm    ");
       snprintf(l2, sizeof(l2), "no echo signal  ");
@@ -200,6 +217,10 @@ static void renderLCD() {
       snprintf(l1, sizeof(l1), "DIST  %4ld mm   ", currentDistanceMm);
       snprintf(l2, sizeof(l2), "rise %+5ld mm  ", rise);
     }
+  } else {  // MODE_VOLUME
+    snprintf(l1, sizeof(l1), "VOLUME    %u/%u   ", volumeLevel, VOLUME_MAX);
+    if (volumeLevel == 0) snprintf(l2, sizeof(l2), "MUTED -- + ups  ");
+    else                   snprintf(l2, sizeof(l2), "use +/- to tune ");
   }
   lcd.setCursor(0, 0); lcd.print(l1);
   lcd.setCursor(0, 1); lcd.print(l2);
@@ -220,6 +241,68 @@ static long readDistanceMm() {
   unsigned long durUs = pulseIn(PIN_SONAR, HIGH, 30000UL);
   if (durUs == 0) return -1;
   return (long)durUs * 343L / 2000L;
+}
+
+// ---- Audio annunciator -----------------------------------------------------
+// One short tone, blocking until the tone hardware has played it through.
+// volumeLevel modifies the tone before it is emitted:
+//   0 = mute  (no tone, but the delay is still consumed so the calling
+//              speakTwoDigit() cadence stays predictable)
+//   1 = soft  (shorter pulse, half pitch -> ear perceives quieter)
+//   2 = normal
+//   3 = emphatic (1.5x pitch -> sits in the ear's 2-4 kHz sensitivity peak)
+static void beep(unsigned freq, unsigned durMs) {
+  if (volumeLevel == 0) { delay(durMs + 50); return; }
+  unsigned f = freq;
+  unsigned d = durMs;
+  if (volumeLevel == 1) { f = freq / 2; d = durMs / 2; }
+  if (volumeLevel == 3) { f = (freq * 3) / 2; }
+  tone(PIN_SPEAKER, f, d);
+  delay(d + 50);
+  noTone(PIN_SPEAKER);
+}
+
+// Speak a two-digit non-negative integer by beep-count: tens digit at
+// 500 Hz (mid), pause, units digit at 1200 Hz (high). A zero digit gets
+// one short 180 Hz blip so the listener can tell "twenty" (2 mid + zero
+// blip) from "two" (just 2 mid). The whole sequence is blocking -- the
+// loop is paused for the ~1-3 s it takes to play.
+static void speakTwoDigit(int n) {
+  if (n < 0 || n > 99) { beep(120, 500); return; }
+  int tens  = n / 10;
+  int units = n % 10;
+  if (tens == 0) {
+    beep(180, 60);
+  } else {
+    for (int i = 0; i < tens; i++) beep(500, 110);
+  }
+  delay(300);
+  if (units == 0) {
+    beep(180, 60);
+  } else {
+    for (int i = 0; i < units; i++) beep(1200, 110);
+  }
+}
+
+// Speak whatever metric the current LCD page is showing. Distance is
+// converted from mm to cm for the announcement (mm values exceed two
+// digits routinely; cm fits in the 0-99 envelope for a typical proofing
+// chamber). Sensor faults produce a single low growl.
+static void speakCurrentPage() {
+  if (displayMode == MODE_TEMP) {
+    if (dhtValid) speakTwoDigit((int)lroundf(currentTempC));
+    else          beep(120, 500);
+  } else if (displayMode == MODE_HUM) {
+    if (dhtValid) speakTwoDigit((int)lroundf(currentHumPct));
+    else          beep(120, 500);
+  } else if (displayMode == MODE_HEIGHT) {
+    if (currentDistanceMm < 0) { beep(120, 500); return; }
+    int cm = (int)(currentDistanceMm / 10);
+    if (cm > 99) cm = 99;
+    speakTwoDigit(cm);
+  } else {  // MODE_VOLUME -- speak the level itself
+    speakTwoDigit(volumeLevel);
+  }
 }
 
 // Bang-bang heater controller with deadband. Forces the relay open if the
@@ -299,6 +382,9 @@ static void onPress(Button b, int adcAtPress) {
       displayMode = (Mode)((displayMode + 1) % MODE_N);
       // No auto-tare on entry -- the page shows raw distance by default
       // and the user explicitly presses B3 when they want to set the zero.
+      // Announce the new page's current value over the speaker. This is
+      // deferred until after the LCD repaint at the end of onPress() so
+      // the user sees the page change before the audio starts.
       break;
     case BTN_B3:
       if (displayMode == MODE_TEMP) {
@@ -306,6 +392,8 @@ static void onPress(Button b, int adcAtPress) {
       } else if (displayMode == MODE_HEIGHT) {
         long mm = readDistanceMm();
         if (mm >= 0) { baselineMm = mm; currentDistanceMm = mm; }
+      } else if (displayMode == MODE_VOLUME) {
+        if (volumeLevel > 0) volumeLevel--;
       } else {
         ignored = true;
       }
@@ -313,6 +401,8 @@ static void onPress(Button b, int adcAtPress) {
     case BTN_B4:
       if (displayMode == MODE_TEMP) {
         if (setpointC < 45) setpointC++;
+      } else if (displayMode == MODE_VOLUME) {
+        if (volumeLevel < VOLUME_MAX) volumeLevel++;
       } else {
         ignored = true;
       }
@@ -330,6 +420,16 @@ static void onPress(Button b, int adcAtPress) {
   // operator does not wait up to 2.5 s for the next DHT tick.
   updateHeater();
   renderLCD();
+  // After the visual feedback, play audio feedback. MODE press announces
+  // the value of the page just landed on. +/- press in VOLUME mode plays
+  // a sample beep so the user can hear the new level immediately.
+  // Deliberately last in onPress so the speaker block does not delay the
+  // LCD refresh.
+  if (b == BTN_B2) {
+    speakCurrentPage();
+  } else if (displayMode == MODE_VOLUME && (b == BTN_B3 || b == BTN_B4)) {
+    beep(800, 120);
+  }
 }
 
 // ---- Arduino entry points --------------------------------------------------
@@ -345,6 +445,10 @@ void setup() {
   pinMode(PIN_HEATER, OUTPUT);
   digitalWrite(PIN_HEATER, LOW);
 
+  // Speaker pin: tone() handles direction internally but we set it to
+  // OUTPUT here explicitly so the pin is in a known state at boot.
+  pinMode(PIN_SPEAKER, OUTPUT);
+
   dht.begin();
 
   Wire.begin();
@@ -358,13 +462,15 @@ void setup() {
 
   Serial.println(F("Proofer panel ready."));
   Serial.println(F("  STOP  : reset to defaults"));
-  Serial.println(F("  MODE  : cycle TEMP -> HUMIDITY -> HEIGHT"));
-  Serial.println(F("  + / - : TEMP page  -> adjust setpoint"));
-  Serial.println(F("          HEIGHT (B3 only) -> re-tare baseline"));
+  Serial.println(F("  MODE  : cycle TEMP -> HUMIDITY -> HEIGHT -> VOLUME"));
+  Serial.println(F("  + / - : TEMP   -> adjust setpoint"));
+  Serial.println(F("          HEIGHT -> B3 re-tares baseline"));
+  Serial.println(F("          VOLUME -> adjust speaker level (0..3)"));
   Serial.println(F("  c     : one-shot raw A0 read"));
   Serial.println(F("  v     : toggle continuous A0 stream (every 200 ms)"));
   Serial.println(F("  p     : single ultrasonic ping with full diagnostics"));
   Serial.println(F("  d     : toggle continuous distance stream (every 500 ms)"));
+  Serial.println(F("  s     : speak the current page value over the speaker"));
 }
 
 void loop() {
@@ -385,6 +491,9 @@ void loop() {
     } else if (ch == 'd') {
       distStream = !distStream;
       Serial.print(F("distStream=")); Serial.println(distStream ? F("ON") : F("OFF"));
+    } else if (ch == 's') {
+      Serial.print(F("[speak] page=")); Serial.println(MODE_NAME[displayMode]);
+      speakCurrentPage();
     } else if (ch == 'p') {
       pinMode(PIN_SONAR, INPUT);
       int idleBefore = digitalRead(PIN_SONAR);

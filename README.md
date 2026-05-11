@@ -32,6 +32,7 @@ rather than open-loop kitchen timing.
 | Grove Ultrasonic Distance Sensor v2 | **D2** | single-wire bidirectional protocol |
 | Grove Temperature + Humidity Pro v1.3 (DHT22) | **D4** | proprietary 1-wire, 0.5 Hz max |
 | Grove SPDT relay + silicone heater pad | **D8** | active-HIGH; bang-bang temperature loop |
+| Grove Speaker (piezo + amp) | **D5** | `tone()` annunciator; beep-count encoding of metrics |
 
 Active components consume ~80 mA at 5 V from the USB-C connection; the
 heater itself runs from its own supply through the relay's isolated
