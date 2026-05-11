@@ -21,8 +21,18 @@
 //     switch bounce while still feeling instant.
 //   - Edge-trigger only on idle->press; release fires nothing so holding a
 //     button never spams events.
+//
+// UI semantics:
+//   B1 STOP : reset state to defaults (setpoint 32 C, TEMP mode, sim restart)
+//   B2 MODE : cycle display between TEMP and HUMIDITY pages
+//   B3  -   : decrement setpoint by 1 C  (only in TEMP mode, min 20 C)
+//   B4  +   : increment setpoint by 1 C  (only in TEMP mode, max 45 C)
+//
+// Live readings are stubbed (marked with * on the LCD). Real sensors will
+// replace stepSimulation() in the next iteration.
 
 #include <Wire.h>
+#include <math.h>
 #include "rgb_lcd.h"
 
 // ---- Pin map ---------------------------------------------------------------
@@ -35,24 +45,20 @@ static const float ADC_TO_V = 5.0f / 1024.0f;
 // ---- Button classification -------------------------------------------------
 enum Button : uint8_t { BTN_NONE, BTN_B1, BTN_B2, BTN_B3, BTN_B4 };
 
-// Bands are tuned to the expected ADC codes from the slide examples, with
-// gaps between them so a sample mid-transition resolves to NONE rather
-// than a phantom button. Re-tune by sending 'c' over serial while a button
-// is held (see calibration block in loop()).
 struct Band { Button id; int lo; int hi; };
 static const Band BANDS[] = {
-  { BTN_B1,    0,   60 },   // ~0
-  { BTN_B2,  120,  185 },   // ~156
-  { BTN_B3,  186,  220 },   // ~198
-  { BTN_B4,  240,  450 },   // ~254 (wide: tolerates ~+/-30% on the 330R leg)
-  { BTN_NONE, 900, 1023 }   // pulled-up idle
+  { BTN_B1,    0,   60 },
+  { BTN_B2,  120,  185 },
+  { BTN_B3,  186,  220 },
+  { BTN_B4,  240,  450 },
+  { BTN_NONE, 900, 1023 }
 };
 
 static Button classify(int adc) {
   for (const Band& b : BANDS) {
     if (adc >= b.lo && adc <= b.hi) return b.id;
   }
-  return BTN_NONE;  // dead-zone between bands -> treat as idle
+  return BTN_NONE;
 }
 
 // ---- Debounce state --------------------------------------------------------
@@ -65,9 +71,25 @@ static Button   confirmed    = BTN_NONE;
 static unsigned long nextSampleMs = 0;
 
 // ---- App state -------------------------------------------------------------
-static int      setpointC   = 32;
-static uint32_t pressCount  = 0;
-static Button   lastPressed = BTN_NONE;
+enum Mode : uint8_t { MODE_TEMP = 0, MODE_HUM = 1, MODE_N };
+static const char* MODE_NAME[MODE_N] = { "TEMP", "HUM " };
+
+static int      setpointC      = 32;
+static Mode     displayMode    = MODE_TEMP;
+static uint32_t pressCount     = 0;
+static Button   lastPressed    = BTN_NONE;
+static int      lastAdc        = 0;
+static bool     verbose        = false;
+static unsigned long nextVerboseMs = 0;
+
+// Stubbed chamber readings -- replaced by real sensor reads in a later step.
+static float    currentTempC   = 22.0f;
+static float    currentHumPct  = 58.0f;
+static unsigned long nextSimMs = 0;
+
+// Track the last mode actually pushed to the LCD so we only re-issue the
+// (relatively slow) setRGB call when it actually changes.
+static Mode     bgMode         = MODE_N;
 
 // ---- LCD -------------------------------------------------------------------
 rgb_lcd lcd;
@@ -82,33 +104,70 @@ static const char* labelOf(Button b) {
   }
 }
 
+// Backlight reflects the active page so a glance tells you which mode you
+// are in even without reading the text. Only re-issue setRGB on change to
+// avoid hammering the LCD over I2C every render.
+static void applyBacklight() {
+  if (displayMode == bgMode) return;
+  bgMode = displayMode;
+  if (displayMode == MODE_TEMP) lcd.setRGB(200, 110,  20);   // warm amber
+  else                          lcd.setRGB( 20, 150, 200);   // cool cyan
+}
+
 static void renderLCD() {
-  // Pad to full 16 chars per line so leftover text from a longer line never
-  // lingers when state changes.
+  applyBacklight();
   char l1[17], l2[17];
-  snprintf(l1, sizeof(l1), "Setpoint: %2d C  ", setpointC);
-  snprintf(l2, sizeof(l2), "[%s] n=%-7lu",     labelOf(lastPressed),
-                                               (unsigned long)pressCount);
+  if (displayMode == MODE_TEMP) {
+    int t10 = (int)lroundf(currentTempC * 10.0f);
+    snprintf(l1, sizeof(l1), "TEMP*  %2d.%1d C   ", t10 / 10, abs(t10) % 10);
+    snprintf(l2, sizeof(l2), "Set %2d C   [+/-]", setpointC);
+  } else {  // MODE_HUM
+    int h10 = (int)lroundf(currentHumPct * 10.0f);
+    snprintf(l1, sizeof(l1), "HUM*   %2d.%1d %%   ", h10 / 10, abs(h10) % 10);
+    snprintf(l2, sizeof(l2), "display only    ");
+  }
   lcd.setCursor(0, 0); lcd.print(l1);
   lcd.setCursor(0, 1); lcd.print(l2);
+}
+
+// Simulated proofer dynamics. Temperature relaxes first-order toward the
+// setpoint (a heater bringing the chamber up); humidity wobbles +/-3 %
+// around a 58 % baseline on a 30 s period -- deterministic so the demo is
+// reproducible. The real sensors will replace this body.
+static void stepSimulation(unsigned long now) {
+  currentTempC  += (setpointC - currentTempC) * 0.05f;
+  currentHumPct  = 58.0f + 3.0f * sinf(now / 30000.0f * 6.2831853f);
 }
 
 static void onPress(Button b, int adcAtPress) {
   pressCount++;
   lastPressed = b;
+  bool ignored = false;
   switch (b) {
-    case BTN_B1:                                  lcd.setRGB(200,  40,  40); break;
-    case BTN_B2:                                  lcd.setRGB( 40,  40, 200); break;
-    case BTN_B3: if (setpointC > 20) setpointC--; lcd.setRGB( 80,  40, 160); break;
-    case BTN_B4: if (setpointC < 45) setpointC++; lcd.setRGB( 40, 180,  80); break;
+    case BTN_B1:  // STOP / RESET: snap all state back to defaults.
+      setpointC      = 32;
+      displayMode    = MODE_TEMP;
+      currentTempC   = 22.0f;
+      break;
+    case BTN_B2:  // MODE: cycle through the display pages.
+      displayMode = (Mode)((displayMode + 1) % MODE_N);
+      break;
+    case BTN_B3:
+      if (displayMode == MODE_TEMP && setpointC > 20) setpointC--;
+      else if (displayMode != MODE_TEMP)              ignored = true;
+      break;
+    case BTN_B4:
+      if (displayMode == MODE_TEMP && setpointC < 45) setpointC++;
+      else if (displayMode != MODE_TEMP)              ignored = true;
+      break;
     default: break;
   }
-  // Log the raw ADC and its equivalent voltage alongside the classified
-  // button so any mis-banding is immediately visible in the serial monitor.
   Serial.print(F("press="));     Serial.print(labelOf(b));
   Serial.print(F(" adc="));      Serial.print(adcAtPress);
   Serial.print(F(" V="));        Serial.print(adcAtPress * ADC_TO_V, 3);
-  Serial.print(F(" setpoint=")); Serial.print(setpointC);
+  Serial.print(F(" mode="));     Serial.print(MODE_NAME[displayMode]);
+  Serial.print(F(" set="));      Serial.print(setpointC);
+  if (ignored) Serial.print(F(" (no-op in this mode)"));
   Serial.print(F(" n="));        Serial.println(pressCount);
   renderLCD();
 }
@@ -122,34 +181,67 @@ void setup() {
   Wire.begin();
   lcd.begin(16, 2);
   lcd.setRGB(0, 200, 80);
-  lcd.print("W1 button rig");
+  lcd.print("Dough proofer");
   lcd.setCursor(0, 1);
-  lcd.print("ready.");
+  lcd.print("warming up...");
   delay(800);
   renderLCD();
 
-  Serial.println(F("W1 ready. Type 'c' for a raw A0 sample (calibration)."));
+  Serial.println(F("Proofer panel ready."));
+  Serial.println(F("  STOP  : reset to defaults"));
+  Serial.println(F("  MODE  : cycle TEMP <-> HUMIDITY page"));
+  Serial.println(F("  + / - : adjust temperature setpoint (TEMP page only)"));
+  Serial.println(F("  c     : one-shot raw A0 read"));
+  Serial.println(F("  v     : toggle continuous A0 stream (every 200 ms)"));
 }
 
 void loop() {
   unsigned long now = millis();
 
-  // Calibration helper: prints the live ADC value on demand without
-  // disturbing the debounce loop. Handy when matching the band table to
-  // the actual resistors on the bench.
-  if (Serial.available() && Serial.read() == 'c') {
+  if (Serial.available()) {
+    char ch = Serial.read();
+    if (ch == 'c') {
+      int raw = analogRead(PIN_BUTTONS);
+      Serial.print(F("A0 raw = "));
+      Serial.print(raw);
+      Serial.print(F("  ("));
+      Serial.print(raw * ADC_TO_V, 3);
+      Serial.println(F(" V)"));
+    } else if (ch == 'v') {
+      verbose = !verbose;
+      Serial.print(F("verbose=")); Serial.println(verbose ? F("ON") : F("OFF"));
+    }
+  }
+
+  // Continuous live stream when verbose mode is on. Each line also runs
+  // the same classifier the press-edge logic uses, so holding a button
+  // continuously reports thinks=MODE etc. without going silent.
+  if (verbose && now >= nextVerboseMs) {
+    nextVerboseMs = now + 200;
     int raw = analogRead(PIN_BUTTONS);
-    Serial.print(F("A0 raw = "));
+    Button thinks = classify(raw);
+    Serial.print(F("[stream] A0="));
     Serial.print(raw);
-    Serial.print(F("  ("));
+    Serial.print(F("  V="));
     Serial.print(raw * ADC_TO_V, 3);
-    Serial.println(F(" V)"));
+    Serial.print(F("  thinks="));
+    Serial.println(labelOf(thinks));
+  }
+
+  // Tick the simulated chamber dynamics once per second and refresh the LCD
+  // so the displayed temperature drifts toward the setpoint and the humidity
+  // gently wobbles -- gives the panel a "live" feel before real sensors land.
+  if (now >= nextSimMs) {
+    nextSimMs = now + 1000;
+    stepSimulation(now);
+    renderLCD();
   }
 
   if (now < nextSampleMs) return;
   nextSampleMs = now + SAMPLE_MS;
 
   int     adc   = analogRead(PIN_BUTTONS);
+  lastAdc       = adc;
   Button  fresh = classify(adc);
 
   if (fresh == candidate) {
