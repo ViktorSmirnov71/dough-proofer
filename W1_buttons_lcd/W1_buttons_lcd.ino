@@ -166,12 +166,17 @@ static void renderLCD() {
     snprintf(l2, sizeof(l2), "display only    ");
   } else {  // MODE_HEIGHT
     if (currentDistanceMm < 0) {
-      snprintf(l1, sizeof(l1), "HEIGHT  -- mm   ");
+      snprintf(l1, sizeof(l1), "DIST   -- mm    ");
       snprintf(l2, sizeof(l2), "no echo signal  ");
+    } else if (baselineMm < 0) {
+      // Not tared yet: just show the live distance and prompt the user.
+      snprintf(l1, sizeof(l1), "DIST  %4ld mm   ", currentDistanceMm);
+      snprintf(l2, sizeof(l2), "B3 to tare      ");
     } else {
-      long rise = (baselineMm >= 0) ? (baselineMm - currentDistanceMm) : 0;
-      snprintf(l1, sizeof(l1), "HEIGHT %+5ld mm ", rise);
-      snprintf(l2, sizeof(l2), "raw %4ld  retare", currentDistanceMm);
+      // Tared: show raw distance up top, rise from baseline below.
+      long rise = baselineMm - currentDistanceMm;
+      snprintf(l1, sizeof(l1), "DIST  %4ld mm   ", currentDistanceMm);
+      snprintf(l2, sizeof(l2), "rise %+5ld mm  ", rise);
     }
   }
   lcd.setCursor(0, 0); lcd.print(l1);
@@ -242,10 +247,8 @@ static void onPress(Button b, int adcAtPress) {
       break;
     case BTN_B2:
       displayMode = (Mode)((displayMode + 1) % MODE_N);
-      if (displayMode == MODE_HEIGHT) {
-        long mm = readDistanceMm();
-        if (mm >= 0) { baselineMm = mm; currentDistanceMm = mm; }
-      }
+      // No auto-tare on entry -- the page shows raw distance by default
+      // and the user explicitly presses B3 when they want to set the zero.
       break;
     case BTN_B3:
       if (displayMode == MODE_TEMP) {
