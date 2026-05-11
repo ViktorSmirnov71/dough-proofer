@@ -110,3 +110,22 @@ Used for tracking dough rise inside the chamber.
 - VCC and GND travel through the same Grove cable. The shield's 3.3 V / 5 V selector is **not critical** for this module — its onboard PCB handles logic-level conversion.
 
 Range: ~2 cm to ~4 m, ±3 mm typical. Mount the sensor face-down ~10-20 cm above the dough surface; the ~15° cone needs a target wider than ~5 cm at that distance to return a clean echo.
+
+## 9. Grove Temperature & Humidity Sensor Pro v1.3 (DHT22 / AM2302)
+
+The chamber's air temperature and relative humidity probe.
+
+- Plug a 4-wire Grove cable from the sensor's onboard socket to the **D4** socket on the Base Shield.
+- Single-wire proprietary protocol on the primary signal line (yellow = D4). The secondary line (D5) is unused.
+- Powered through the Grove cable; tolerates the shield being set to either 3.3 V or 5 V.
+
+Sensor characteristics:
+
+| Parameter | Value |
+|---|---|
+| Temperature range | -40 °C to +80 °C, ±0.5 °C accuracy |
+| Humidity range | 0–100 % RH, ±2 % accuracy |
+| Minimum read interval | 2 s (datasheet limit) |
+| First valid reading after power-on | ~1 s warm-up |
+
+The firmware samples the DHT22 every 2.5 s and silently holds the previous good value on a NaN return (which the sensor produces occasionally — usually less than 1 in 50 reads, harmless).

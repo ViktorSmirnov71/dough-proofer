@@ -1,5 +1,6 @@
 // Reaction-chamber control panel - Analog button matrix + Grove RGB LCD +
-// ultrasonic dough-height tracking on UNO R4 WiFi.
+// ultrasonic dough-height tracking + DHT22 temperature/humidity, on
+// Arduino UNO R4 WiFi.
 //
 // Hardware:
 //   5V --[1k]--+-- A0                       (R1 = series resistor)
@@ -15,13 +16,21 @@
 //
 //   Grove Ultrasonic Distance Sensor v2 (single-wire signal):
 //       Plug a Grove cable from the sensor's socket to the D2 socket on the
-//       Base Shield. The cable carries VCC, GND, and the bidirectional
-//       signal line; only the primary signal (yellow, = D2) is used. The
-//       module handles its own logic-level conversion internally.
+//       Base Shield. That's the whole hookup -- the cable carries VCC, GND,
+//       and the bidirectional signal line. Only the primary signal (yellow,
+//       = D2) is used; the secondary line (white, = D3) is unconnected on
+//       this module. The sensor handles its own logic-level conversion so
+//       the shield's 3.3V/5V switch position is not critical.
+//
+//   Grove Temperature & Humidity Sensor Pro v1.3 (DHT22 / AM2302):
+//       Plug a Grove cable from the sensor's socket to the D4 socket on the
+//       Base Shield. Single-wire 1-wire-style protocol on D4 (yellow); the
+//       D5 secondary line is unused. Datasheet limits read rate to ~0.5 Hz,
+//       so we sample every 2.5 s and cache the last good values.
 //
 // Design notes:
 //   - One ADC pin for N buttons frees digital pins for the heater relay
-//     and additional sensors that the later iterations bring in.
+//     and additional sensors.
 //   - Thresholds come straight from the voltage-divider math; the wider
 //     upper band on B4 absorbs resistor tolerance and series-resistor drift.
 //   - 5 ms sampling x 6 stable samples = ~30 ms debounce: rides out tactile
@@ -41,11 +50,13 @@
 
 #include <Wire.h>
 #include <math.h>
+#include <DHT.h>
 #include "rgb_lcd.h"
 
 // ---- Pin map ---------------------------------------------------------------
 static const uint8_t PIN_BUTTONS = A0;
 static const uint8_t PIN_SONAR   = 2;     // Grove Ultrasonic v2 single-wire signal
+static const uint8_t PIN_DHT     = 4;     // Grove Temp+Humidity Pro signal (D4)
 
 // ---- ADC -> voltage conversion ---------------------------------------------
 static const float ADC_TO_V = 5.0f / 1024.0f;
@@ -92,12 +103,14 @@ static bool     distStream     = false;
 static unsigned long nextVerboseMs = 0;
 static unsigned long nextDistMs    = 0;
 
-// Stubbed chamber readings -- replaced by real sensor reads in the next
-// iteration. They live in the same units the LCD will show so the swap-in
-// is mechanical.
+// Live readings from the DHT22. Pre-seeded with sensible defaults so the
+// LCD has something to show before the first successful read lands, but a
+// 'valid' flag tracks whether real numbers have arrived yet.
 static float    currentTempC   = 22.0f;
 static float    currentHumPct  = 58.0f;
-static unsigned long nextSimMs = 0;
+static bool     dhtValid       = false;
+static unsigned long nextSonarMs = 0;
+static unsigned long nextDhtMs   = 0;
 
 // Distance / dough-height state. currentDistanceMm is the latest raw read
 // (-1 = no echo / sensor not present). baselineMm is the "empty / starting"
@@ -110,6 +123,9 @@ static Mode     bgMode         = MODE_N;
 
 // ---- LCD -------------------------------------------------------------------
 rgb_lcd lcd;
+
+// ---- DHT22 -----------------------------------------------------------------
+DHT dht(PIN_DHT, DHT22);
 
 static const char* labelOf(Button b) {
   switch (b) {
@@ -133,12 +149,20 @@ static void renderLCD() {
   applyBacklight();
   char l1[17], l2[17];
   if (displayMode == MODE_TEMP) {
-    int t10 = (int)lroundf(currentTempC * 10.0f);
-    snprintf(l1, sizeof(l1), "TEMP*  %2d.%1d C   ", t10 / 10, abs(t10) % 10);
+    if (dhtValid) {
+      int t10 = (int)lroundf(currentTempC * 10.0f);
+      snprintf(l1, sizeof(l1), "TEMP   %2d.%1d C   ", t10 / 10, abs(t10) % 10);
+    } else {
+      snprintf(l1, sizeof(l1), "TEMP   --.- C   ");
+    }
     snprintf(l2, sizeof(l2), "Set %2d C   [+/-]", setpointC);
   } else if (displayMode == MODE_HUM) {
-    int h10 = (int)lroundf(currentHumPct * 10.0f);
-    snprintf(l1, sizeof(l1), "HUM*   %2d.%1d %%   ", h10 / 10, abs(h10) % 10);
+    if (dhtValid) {
+      int h10 = (int)lroundf(currentHumPct * 10.0f);
+      snprintf(l1, sizeof(l1), "HUM    %2d.%1d %%   ", h10 / 10, abs(h10) % 10);
+    } else {
+      snprintf(l1, sizeof(l1), "HUM    --.- %%   ");
+    }
     snprintf(l2, sizeof(l2), "display only    ");
   } else {  // MODE_HEIGHT
     if (currentDistanceMm < 0) {
@@ -168,20 +192,41 @@ static long readDistanceMm() {
   pinMode(PIN_SONAR, INPUT);
   unsigned long durUs = pulseIn(PIN_SONAR, HIGH, 30000UL);
   if (durUs == 0) return -1;
-  // Speed of sound ~ 343 m/s -> mm = us * 343 / 2 / 1000
-  // Integer-safe form: mm = us * 343 / 2000.
   return (long)durUs * 343L / 2000L;
 }
 
-// Simulated chamber dynamics + live sonar sample. Temperature relaxes
-// first-order toward the setpoint (heater bringing the chamber up);
-// humidity wobbles +/-3 % around a 58 % baseline on a 30 s period
-// (deterministic so the demo is reproducible). The distance read is
-// always live -- real temp/humidity sensors will replace the stub lines.
-static void stepSimulation(unsigned long now) {
-  currentTempC      += (setpointC - currentTempC) * 0.05f;
-  currentHumPct      = 58.0f + 3.0f * sinf(now / 30000.0f * 6.2831853f);
-  currentDistanceMm  = readDistanceMm();
+// Two-rate sensor sampler. Sonar runs at 1 Hz (pulseIn blocks up to 30 ms
+// so we keep it cheap); the DHT22 runs at ~0.4 Hz because its datasheet
+// requires >=2 s between reads. NaN returns from the DHT mean the sensor
+// missed a frame -- common, harmless, just hold the last good value.
+// Returns true if any reading changed (caller decides to repaint).
+static bool stepSensors(unsigned long now) {
+  bool changed = false;
+
+  if (now >= nextSonarMs) {
+    nextSonarMs = now + 1000;
+    currentDistanceMm = readDistanceMm();
+    changed = true;
+  }
+
+  if (now >= nextDhtMs) {
+    nextDhtMs = now + 2500;
+    float t = dht.readTemperature();
+    float h = dht.readHumidity();
+    if (!isnan(t) && !isnan(h)) {
+      currentTempC  = t;
+      currentHumPct = h;
+      if (!dhtValid) {
+        dhtValid = true;
+        Serial.println(F("[dht] first valid reading"));
+      }
+      changed = true;
+    } else {
+      Serial.println(F("[dht] read failed (NaN) -- holding previous values"));
+    }
+  }
+
+  return changed;
 }
 
 static void onPress(Button b, int adcAtPress) {
@@ -197,8 +242,6 @@ static void onPress(Button b, int adcAtPress) {
       break;
     case BTN_B2:
       displayMode = (Mode)((displayMode + 1) % MODE_N);
-      // Entering HEIGHT auto-tares to the current distance so the display
-      // starts at 0 mm and counts up as the dough rises.
       if (displayMode == MODE_HEIGHT) {
         long mm = readDistanceMm();
         if (mm >= 0) { baselineMm = mm; currentDistanceMm = mm; }
@@ -239,8 +282,8 @@ void setup() {
   unsigned long t0 = millis();
   while (!Serial && (millis() - t0) < 1500) { /* spin */ }
 
-  // Single-wire Grove sonar: direction is flipped per ping inside readDistanceMm().
   pinMode(PIN_SONAR, INPUT);
+  dht.begin();
 
   Wire.begin();
   lcd.begin(16, 2);
@@ -317,11 +360,8 @@ void loop() {
     Serial.println(labelOf(thinks));
   }
 
-  if (now >= nextSimMs) {
-    nextSimMs = now + 1000;
-    stepSimulation(now);
-    renderLCD();
-  }
+  // Drive the real sensors. Each one has its own cadence inside stepSensors().
+  if (stepSensors(now)) renderLCD();
 
   if (distStream && now >= nextDistMs) {
     nextDistMs = now + 500;
