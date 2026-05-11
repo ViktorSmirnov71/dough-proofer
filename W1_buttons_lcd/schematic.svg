@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 540" width="820" height="540">
+  <style>
+    text { font-family: -apple-system, Helvetica, Arial, sans-serif; }
+    .wire { stroke: #111; stroke-width: 2; fill: none; stroke-linecap: square; stroke-linejoin: miter; }
+    .junction { fill: #111; }
+    .title { font-size: 17px; font-weight: 700; fill: #111; }
+    .label { font-size: 13px; fill: #111; }
+    .strong { font-size: 13px; fill: #111; font-weight: 700; }
+    .value { font-size: 13px; fill: #06743a; font-weight: 700; }
+    .annot { font-size: 12px; fill: #555; font-style: italic; }
+    .formula { font-size: 13px; fill: #333; font-style: italic; }
+    .bg { fill: #fafafa; }
+    .bandbox { fill: none; stroke: #ccc; stroke-width: 1; stroke-dasharray: 3 3; }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="820" height="540" />
+
+  <text x="20" y="28" class="title">Workshop 1 — analog-divider button array on A0</text>
+  <text x="20" y="50" class="formula">V_out = R2 / (R1 + R2) · V_in       Idle (no press): V_out ≈ 5.00 V, ADC ≈ 1023</text>
+
+  <!-- ============ +5V supply and R1 series resistor ============ -->
+  <text x="184" y="84" class="label">+5 V</text>
+  <line class="wire" x1="190" y1="90" x2="210" y2="90" />
+  <line class="wire" x1="200" y1="90" x2="200" y2="120" />
+  <polyline class="wire"
+      points="200,120 200,127 190,131 210,141 190,151 210,161 190,171 200,175 200,180" />
+  <text x="222" y="155" class="value">R1 = 1 k&#937;</text>
+  <text x="222" y="171" class="annot">series resistor (pull-up to 5 V)</text>
+
+  <!-- ============ Common node X / horizontal bus ============ -->
+  <line class="wire" x1="200" y1="180" x2="760" y2="180" />
+  <circle class="junction" cx="200" cy="180" r="3.5" />
+
+  <!-- A0 take-off arrow -->
+  <line class="wire" x1="760" y1="180" x2="785" y2="180" />
+  <polygon points="785,174 800,180 785,186" fill="#111" />
+  <text x="752" y="172" class="strong">&#8594; A0</text>
+  <text x="722" y="200" class="annot">to analog pin</text>
+
+  <!-- ============ Branch 1: SW1 direct short ============ -->
+  <circle class="junction" cx="320" cy="180" r="3.5" />
+  <line class="wire" x1="320" y1="180" x2="320" y2="290" />
+  <circle class="junction" cx="320" cy="290" r="3" />
+  <circle class="junction" cx="320" cy="340" r="3" />
+  <line class="wire" x1="320" y1="340" x2="338" y2="297" />
+  <line class="wire" x1="320" y1="340" x2="320" y2="395" />
+  <line class="wire" x1="305" y1="395" x2="335" y2="395" />
+  <line class="wire" x1="310" y1="400" x2="330" y2="400" />
+  <line class="wire" x1="315" y1="405" x2="325" y2="405" />
+  <text x="345" y="318" class="strong">SW1</text>
+  <text x="345" y="334" class="annot">(B1)</text>
+  <text x="298" y="427" class="annot">direct short</text>
+  <text x="291" y="446" class="value">&#8776; 0.00 V</text>
+  <text x="298" y="462" class="annot">ADC &#8776; 0</text>
+
+  <!-- ============ Branch 2: 180 ohm + SW2 ============ -->
+  <circle class="junction" cx="440" cy="180" r="3.5" />
+  <line class="wire" x1="440" y1="180" x2="440" y2="210" />
+  <polyline class="wire"
+      points="440,210 440,217 430,221 450,231 430,241 450,251 430,261 440,265 440,270" />
+  <text x="462" y="244" class="value">180 &#937;</text>
+  <line class="wire" x1="440" y1="270" x2="440" y2="290" />
+  <circle class="junction" cx="440" cy="290" r="3" />
+  <circle class="junction" cx="440" cy="340" r="3" />
+  <line class="wire" x1="440" y1="340" x2="458" y2="297" />
+  <line class="wire" x1="440" y1="340" x2="440" y2="395" />
+  <line class="wire" x1="425" y1="395" x2="455" y2="395" />
+  <line class="wire" x1="430" y1="400" x2="450" y2="400" />
+  <line class="wire" x1="435" y1="405" x2="445" y2="405" />
+  <text x="465" y="318" class="strong">SW2</text>
+  <text x="465" y="334" class="annot">(B2)</text>
+  <text x="412" y="427" class="annot">R2 = 180 &#937;</text>
+  <text x="411" y="446" class="value">&#8776; 0.76 V</text>
+  <text x="408" y="462" class="annot">ADC &#8776; 156</text>
+
+  <!-- ============ Branch 3: 240 ohm + SW3 ============ -->
+  <circle class="junction" cx="560" cy="180" r="3.5" />
+  <line class="wire" x1="560" y1="180" x2="560" y2="210" />
+  <polyline class="wire"
+      points="560,210 560,217 550,221 570,231 550,241 570,251 550,261 560,265 560,270" />
+  <text x="582" y="244" class="value">240 &#937;</text>
+  <line class="wire" x1="560" y1="270" x2="560" y2="290" />
+  <circle class="junction" cx="560" cy="290" r="3" />
+  <circle class="junction" cx="560" cy="340" r="3" />
+  <line class="wire" x1="560" y1="340" x2="578" y2="297" />
+  <line class="wire" x1="560" y1="340" x2="560" y2="395" />
+  <line class="wire" x1="545" y1="395" x2="575" y2="395" />
+  <line class="wire" x1="550" y1="400" x2="570" y2="400" />
+  <line class="wire" x1="555" y1="405" x2="565" y2="405" />
+  <text x="585" y="318" class="strong">SW3</text>
+  <text x="585" y="334" class="annot">(B3)</text>
+  <text x="532" y="427" class="annot">R2 = 240 &#937;</text>
+  <text x="531" y="446" class="value">&#8776; 0.97 V</text>
+  <text x="528" y="462" class="annot">ADC &#8776; 198</text>
+
+  <!-- ============ Branch 4: 330 ohm + SW4 ============ -->
+  <circle class="junction" cx="680" cy="180" r="3.5" />
+  <line class="wire" x1="680" y1="180" x2="680" y2="210" />
+  <polyline class="wire"
+      points="680,210 680,217 670,221 690,231 670,241 690,251 670,261 680,265 680,270" />
+  <text x="702" y="244" class="value">330 &#937;</text>
+  <line class="wire" x1="680" y1="270" x2="680" y2="290" />
+  <circle class="junction" cx="680" cy="290" r="3" />
+  <circle class="junction" cx="680" cy="340" r="3" />
+  <line class="wire" x1="680" y1="340" x2="698" y2="297" />
+  <line class="wire" x1="680" y1="340" x2="680" y2="395" />
+  <line class="wire" x1="665" y1="395" x2="695" y2="395" />
+  <line class="wire" x1="670" y1="400" x2="690" y2="400" />
+  <line class="wire" x1="675" y1="405" x2="685" y2="405" />
+  <text x="705" y="318" class="strong">SW4</text>
+  <text x="705" y="334" class="annot">(B4)</text>
+  <text x="652" y="427" class="annot">R2 = 330 &#937;</text>
+  <text x="651" y="446" class="value">&#8776; 1.24 V</text>
+  <text x="648" y="462" class="annot">ADC &#8776; 254</text>
+
+  <!-- Footer notes -->
+  <text x="20" y="498" class="annot">All ground symbols tie back to the UNO GND rail. ADC counts shown for 10-bit conversion (0..1023) at V_ref = 5 V.</text>
+  <text x="20" y="516" class="annot">Closing any switch pulls node X down through R1 in series with that branch's R2; the resulting ADC code identifies which button was pressed.</text>
+</svg>

@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Editor / IDE temp files
+*.swp
+*.swo
+*~
+
+# Arduino IDE build artefacts
+build/
+*.hex
+*.elf
+*.bin
+
+# Imperial College lecture PDFs are copyrighted and not redistributed here
+*.pdf
