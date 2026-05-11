@@ -133,7 +133,7 @@ static const char* MODE_NAME[MODE_N] = { "TEMP", "HUM ", "HGHT", "VOL " };
 // potentiometer on the speaker module itself; this is the digital mute /
 // trim on top of it.
 static const uint8_t VOLUME_MAX = 3;
-static uint8_t       volumeLevel = 2;
+static uint8_t       volumeLevel = 3;     // default to loudest -- LPC is faint otherwise
 
 static int      setpointC      = 32;
 static Mode     displayMode    = MODE_TEMP;
@@ -314,16 +314,13 @@ static void beep(unsigned freq, unsigned durMs) {
 // instead of attempting to say nonsense.
 static void speakCurrentPage() {
   if (volumeLevel == 0) return;            // muted -> say nothing at all
-  // Map software volume to TalkiePCM's internal gain. Raw LPC output only
-  // touches ~25 % of the DAC range, which is much quieter than the
-  // square-wave beeps that hit the rails -- the Grove Speaker's pot
-  // setting that makes beeps "loud enough" leaves speech below the noise
-  // floor. We deliberately overdrive: level 2 saturates the int16 range
-  // for typical samples (perceived as "clearly audible"), level 3 hard-
-  // clips most of the waveform into a roughly square shape (perceived as
-  // "distorted but unmistakable"). Acceptable trade-off because the
-  // listener mainly needs to recognise digits, not enjoy fidelity.
-  static const float gainTable[VOLUME_MAX + 1] = { 0.0f, 1.0f, 2.5f, 5.0f };
+  // Map software volume to TalkiePCM's internal gain. The raw LPC output
+  // only touches ~25 % of the DAC range so an unscaled signal disappears
+  // under the speaker's pot setting that makes beeps comfortable. We pick
+  // gains that keep the waveform shape mostly intact (i.e. avoid the
+  // heavy clipping that destroys the formants) while still being audible.
+  // Level 3 sits just at the edge of clipping for typical LPC peaks.
+  static const float gainTable[VOLUME_MAX + 1] = { 0.0f, 1.0f, 1.5f, 2.0f };
   voice.setVolume(gainTable[volumeLevel]);
   nextSampleUs = micros();                 // reset 8 kHz schedule for this burst
   if (displayMode == MODE_TEMP) {
