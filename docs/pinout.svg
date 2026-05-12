@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 480" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial" font-size="13">
+  <defs>
+    <linearGradient id="bg3" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <linearGradient id="board" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0f3a3a"/>
+      <stop offset="1" stop-color="#103b3b"/>
+    </linearGradient>
+    <filter id="soft3" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-opacity=".18"/>
+    </filter>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg3)"/>
+  <text x="470" y="36" text-anchor="middle" font-size="20" font-weight="600" fill="#0f172a">Pin assignment</text>
+
+  <!-- Stylised board -->
+  <g filter="url(#soft3)">
+    <rect x="290" y="100" width="360" height="280" rx="14" fill="url(#board)"/>
+    <text x="470" y="148" text-anchor="middle" fill="#a7f3d0" font-weight="700" font-size="18">UNO R4 WiFi</text>
+    <text x="470" y="170" text-anchor="middle" fill="#bbf7d0" font-size="12">+ Seeed Grove Base Shield</text>
+  </g>
+
+  <!-- Pin labels on board -->
+  <g font-size="12" fill="#e2e8f0">
+    <text x="310" y="200">A1</text>
+    <text x="310" y="240">A0 (DAC)</text>
+    <text x="310" y="280">D2</text>
+    <text x="310" y="320">D4</text>
+    <text x="310" y="360">D6</text>
+    <text x="630" y="200" text-anchor="end">SDA/SCL</text>
+    <text x="630" y="240" text-anchor="end">D8</text>
+  </g>
+
+  <!-- Peripherals -->
+  <g filter="url(#soft3)">
+    <rect x="20" y="170" width="220" height="50" rx="10" fill="#0ea5e9"/>
+    <text x="130" y="192" text-anchor="middle" fill="white" font-weight="600">4-button matrix</text>
+    <text x="130" y="210" text-anchor="middle" fill="white" font-size="11" opacity=".9">analog voltage divider</text>
+  </g>
+  <g filter="url(#soft3)">
+    <rect x="20" y="220" width="220" height="50" rx="10" fill="#8b5cf6"/>
+    <text x="130" y="242" text-anchor="middle" fill="white" font-weight="600">Grove Speaker</text>
+    <text x="130" y="260" text-anchor="middle" fill="white" font-size="11" opacity=".9">12-bit analog out</text>
+  </g>
+  <g filter="url(#soft3)">
+    <rect x="20" y="270" width="220" height="50" rx="10" fill="#94a3b8" opacity="0.6"/>
+    <text x="130" y="292" text-anchor="middle" fill="white" font-weight="600">(D2 unused)</text>
+    <text x="130" y="310" text-anchor="middle" fill="white" font-size="11" opacity=".9">ToF migrated to I²C</text>
+  </g>
+  <g filter="url(#soft3)">
+    <rect x="20" y="320" width="220" height="50" rx="10" fill="#0ea5e9"/>
+    <text x="130" y="342" text-anchor="middle" fill="white" font-weight="600">DHT22</text>
+    <text x="130" y="360" text-anchor="middle" fill="white" font-size="11" opacity=".9">air T / RH</text>
+  </g>
+  <g filter="url(#soft3)">
+    <rect x="20" y="370" width="220" height="40" rx="10" fill="#0ea5e9"/>
+    <text x="130" y="396" text-anchor="middle" fill="white" font-weight="600">DS18B20 probe (1-Wire)</text>
+  </g>
+
+  <g filter="url(#soft3)">
+    <rect x="700" y="170" width="220" height="50" rx="10" fill="#22c55e"/>
+    <text x="810" y="192" text-anchor="middle" fill="white" font-weight="600">RGB LCD + VL53L0X</text>
+    <text x="810" y="210" text-anchor="middle" fill="white" font-size="11" opacity=".9">shared I²C bus</text>
+  </g>
+  <g filter="url(#soft3)">
+    <rect x="700" y="220" width="220" height="50" rx="10" fill="#ef4444"/>
+    <text x="810" y="242" text-anchor="middle" fill="white" font-weight="600">SPDT relay → heater</text>
+    <text x="810" y="260" text-anchor="middle" fill="white" font-size="11" opacity=".9">active-HIGH</text>
+  </g>
+
+  <!-- Lines pins -->
+  <line x1="240" y1="195" x2="305" y2="200" stroke="#cbd5e1" stroke-width="2"/>
+  <line x1="240" y1="245" x2="305" y2="240" stroke="#cbd5e1" stroke-width="2"/>
+  <line x1="240" y1="345" x2="305" y2="320" stroke="#cbd5e1" stroke-width="2"/>
+  <line x1="240" y1="390" x2="305" y2="360" stroke="#cbd5e1" stroke-width="2"/>
+  <line x1="635" y1="195" x2="700" y2="195" stroke="#cbd5e1" stroke-width="2"/>
+  <line x1="635" y1="240" x2="700" y2="245" stroke="#cbd5e1" stroke-width="2"/>
+</svg>

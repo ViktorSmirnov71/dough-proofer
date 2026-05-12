@@ -103,13 +103,13 @@ If a button is detected as the wrong one, hold it down and type `c` + Enter in t
 
 ## 8. Grove Ultrasonic Distance Sensor v2
 
-Used for tracking dough rise inside the chamber.
+Used for tracking sample rise inside the chamber.
 
 - Plug a 4-wire Grove cable from the sensor's onboard socket to the **D2** socket on the Base Shield. That's the whole hookup.
 - The sensor uses a **single bidirectional signal line** — the firmware pulses it HIGH for 5 us to fire a ping, then switches the pin to INPUT and measures the returned echo pulse width. There is no separate Trig/Echo split as on a bare HC-SR04.
 - VCC and GND travel through the same Grove cable. The shield's 3.3 V / 5 V selector is **not critical** for this module — its onboard PCB handles logic-level conversion.
 
-Range: ~2 cm to ~4 m, ±3 mm typical. Mount the sensor face-down ~10-20 cm above the dough surface; the ~15° cone needs a target wider than ~5 cm at that distance to return a clean echo.
+Range: ~2 cm to ~4 m, ±3 mm typical. Mount the sensor face-down ~10-20 cm above the sample surface; the ~15° cone needs a target wider than ~5 cm at that distance to return a clean echo.
 
 ## 9. Grove Temperature & Humidity Sensor Pro v1.3 (DHT22 / AM2302)
 

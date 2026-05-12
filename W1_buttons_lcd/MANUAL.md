@@ -1,6 +1,6 @@
 # Operation manual
 
-Day-to-day cheat sheet for running the dough-proofer firmware
+Day-to-day cheat sheet for running the isotherm-r4 firmware
 (`W1_buttons_lcd.ino`). For the electrical build see
 [`WIRING.md`](WIRING.md) and [`schematic.svg`](schematic.svg).
 
@@ -129,7 +129,7 @@ Typical re-tuned bands after one calibration pass:
    value above 900 (close to 1023).
 
 If all five pass, the rig is ready for the closed-loop control work
-(relay + heater, signal smoothing, dough-rise forecast).
+(relay + heater, signal smoothing, trajectory forecasting).
 
 ## 8. Common runtime issues
 

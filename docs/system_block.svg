@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 540" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial" font-size="13">
+  <defs>
+    <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0f172a"/>
+    </marker>
+    <linearGradient id="bg2" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <filter id="soft2" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-opacity=".18"/>
+    </filter>
+    <linearGradient id="mcu" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg2)"/>
+  <text x="490" y="38" text-anchor="middle" font-size="20" font-weight="600" fill="#0f172a">System block diagram — isotherm-r4</text>
+
+  <!-- MCU -->
+  <g filter="url(#soft2)">
+    <rect x="370" y="200" width="240" height="140" rx="14" fill="url(#mcu)"/>
+    <text x="490" y="232" text-anchor="middle" fill="white" font-weight="600" font-size="16">Arduino UNO R4 WiFi</text>
+    <text x="490" y="252" text-anchor="middle" fill="#cbd5e1" font-size="12">Renesas RA4M1  ·  48 MHz</text>
+    <text x="490" y="270" text-anchor="middle" fill="#cbd5e1" font-size="12">12-bit DAC on A0  ·  10-bit ADC</text>
+    <text x="490" y="296" text-anchor="middle" fill="#86efac" font-size="12">PI control · 4 Hz tick</text>
+    <text x="490" y="314" text-anchor="middle" fill="#86efac" font-size="12">debounce · render · games</text>
+  </g>
+
+  <!-- Inputs left side -->
+  <g filter="url(#soft2)">
+    <rect x="40" y="80" width="200" height="56" rx="10" fill="#0ea5e9"/>
+    <text x="140" y="105" text-anchor="middle" fill="white" font-weight="600">4-button matrix</text>
+    <text x="140" y="123" text-anchor="middle" fill="white" font-size="11" opacity=".9">A1  ·  voltage-divider ADC</text>
+  </g>
+  <g filter="url(#soft2)">
+    <rect x="40" y="160" width="200" height="56" rx="10" fill="#0ea5e9"/>
+    <text x="140" y="185" text-anchor="middle" fill="white" font-weight="600">DS18B20 immersion probe</text>
+    <text x="140" y="203" text-anchor="middle" fill="white" font-size="11" opacity=".9">D6  ·  1-Wire  ·  ±0.1 °C</text>
+  </g>
+  <g filter="url(#soft2)">
+    <rect x="40" y="240" width="200" height="56" rx="10" fill="#0ea5e9"/>
+    <text x="140" y="265" text-anchor="middle" fill="white" font-weight="600">DHT22</text>
+    <text x="140" y="283" text-anchor="middle" fill="white" font-size="11" opacity=".9">D4  ·  T air + RH</text>
+  </g>
+  <g filter="url(#soft2)">
+    <rect x="40" y="320" width="200" height="56" rx="10" fill="#0ea5e9"/>
+    <text x="140" y="345" text-anchor="middle" fill="white" font-weight="600">VL53L0X laser ToF</text>
+    <text x="140" y="363" text-anchor="middle" fill="white" font-size="11" opacity=".9">I²C  ·  30–2000 mm</text>
+  </g>
+
+  <!-- Outputs right side -->
+  <g filter="url(#soft2)">
+    <rect x="740" y="80" width="200" height="56" rx="10" fill="#ef4444"/>
+    <text x="840" y="105" text-anchor="middle" fill="white" font-weight="600">heater pad</text>
+    <text x="840" y="123" text-anchor="middle" fill="white" font-size="11" opacity=".9">via SPDT relay  ·  D8</text>
+  </g>
+  <g filter="url(#soft2)">
+    <rect x="740" y="160" width="200" height="56" rx="10" fill="#22c55e"/>
+    <text x="840" y="185" text-anchor="middle" fill="white" font-weight="600">RGB LCD 2×16</text>
+    <text x="840" y="203" text-anchor="middle" fill="white" font-size="11" opacity=".9">I²C  ·  dynamic CGRAM</text>
+  </g>
+  <g filter="url(#soft2)">
+    <rect x="740" y="240" width="200" height="56" rx="10" fill="#8b5cf6"/>
+    <text x="840" y="265" text-anchor="middle" fill="white" font-weight="600">Grove Speaker</text>
+    <text x="840" y="283" text-anchor="middle" fill="white" font-size="11" opacity=".9">A0  ·  12-bit DAC</text>
+  </g>
+  <g filter="url(#soft2)">
+    <rect x="740" y="320" width="200" height="56" rx="10" fill="#64748b"/>
+    <text x="840" y="345" text-anchor="middle" fill="white" font-weight="600">Serial telemetry</text>
+    <text x="840" y="363" text-anchor="middle" fill="white" font-size="11" opacity=".9">USB-C · 115200 baud</text>
+  </g>
+
+  <!-- Lines: inputs -> MCU -->
+  <line x1="240" y1="108" x2="370" y2="220" stroke="#0f172a" stroke-width="2" marker-end="url(#ah2)"/>
+  <line x1="240" y1="188" x2="370" y2="244" stroke="#0f172a" stroke-width="2" marker-end="url(#ah2)"/>
+  <line x1="240" y1="268" x2="370" y2="268" stroke="#0f172a" stroke-width="2" marker-end="url(#ah2)"/>
+  <line x1="240" y1="348" x2="370" y2="320" stroke="#0f172a" stroke-width="2" marker-end="url(#ah2)"/>
+
+  <!-- Lines: MCU -> outputs -->
+  <line x1="610" y1="220" x2="740" y2="108" stroke="#0f172a" stroke-width="2" marker-end="url(#ah2)"/>
+  <line x1="610" y1="244" x2="740" y2="188" stroke="#0f172a" stroke-width="2" marker-end="url(#ah2)"/>
+  <line x1="610" y1="268" x2="740" y2="268" stroke="#0f172a" stroke-width="2" marker-end="url(#ah2)"/>
+  <line x1="610" y1="320" x2="740" y2="348" stroke="#0f172a" stroke-width="2" marker-end="url(#ah2)"/>
+
+  <!-- Chamber wrapper -->
+  <g>
+    <rect x="200" y="430" width="580" height="80" rx="14" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="490" y="470" text-anchor="middle" fill="#475569" font-style="italic">isothermal reaction chamber</text>
+    <text x="490" y="490" text-anchor="middle" fill="#94a3b8" font-size="12">DS18B20 probe is immersed; DHT22 reads air; ToF measures sample geometry</text>
+  </g>
+</svg>
